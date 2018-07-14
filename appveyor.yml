@@ -1,0 +1,46 @@
+image: ubuntu
+stack: jdk 8
+
+init:
+  - NDK_VERSION=r17b
+  - NDK_CHECKSUM=5dfbbdc2d3ba859fed90d0e978af87c71a91a5be1f6e1c40ba697503d48ccecd
+  - SDK_VERSION=4333796
+  - SDK_CHECKSUM=92ffee5a1d98d856634e8b71132e8a95d96c83a63fde1099be3d86df3106def9
+  - export ANDROID_HOME=/tmp/sdk
+
+install:
+  - git submodule update --init
+  - pushd /tmp
+  - curl -fsSLO "https://dl.google.com/android/repository/android-ndk-${NDK_VERSION}-linux-x86_64.zip"
+  - echo "${NDK_CHECKSUM} *android-ndk-${NDK_VERSION}-linux-x86_64.zip" | sha256sum -c -
+  - unzip -q "android-ndk-${NDK_VERSION}-linux-x86_64.zip"
+  - android-ndk-${NDK_VERSION}/build/tools/make-standalone-toolchain.sh --platform=android-14 --arch=arm --install-dir=/tmp/toolchain-14-arm
+  - android-ndk-${NDK_VERSION}/build/tools/make-standalone-toolchain.sh --platform=android-14 --arch=x86 --install-dir=/tmp/toolchain-14-x86
+  - curl -fsSLO "https://dl.google.com/android/repository/sdk-tools-linux-${SDK_VERSION}.zip"
+  - echo "${SDK_CHECKSUM} *sdk-tools-linux-${SDK_VERSION}.zip" | sha256sum -c -
+  - unzip -q "sdk-tools-linux-${SDK_VERSION}.zip" -d sdk
+  - yes | ./sdk/tools/bin/sdkmanager --licenses >/dev/null
+  - ./sdk/tools/bin/sdkmanager "extras;android;m2repository" "platforms;android-27" "build-tools;28.0.1" >/dev/null
+  - popd
+  - pushd polipo
+  - PATH=/tmp/toolchain-14-arm/bin:$PATH CC=arm-linux-androideabi-clang EXTRA_DEFINES="-fvisibility=default -fPIE -U __linux" LDFLAGS="-rdynamic -fPIE -pie" make polipo
+  - cp polipo ../src/main/assets/polipo-arm
+  - make clean
+  - PATH=/tmp/toolchain-14-x86/bin:$PATH CC=i686-linux-android-clang EXTRA_DEFINES="-fvisibility=default -fPIE -U __linux" LDFLAGS="-rdynamic -fPIE -pie" make polipo
+  - cp polipo ../src/main/assets/polipo-x86
+  - make clean
+  - popd
+  - pushd src/main/run-pie
+  - /tmp/toolchain-14-arm/bin/arm-linux-androideabi-clang -o run_pie-arm run_pie.c
+  - /tmp/toolchain-14-x86/bin/i686-linux-android-clang -o run_pie-x86 run_pie.c
+  - cp run_pie-arm ../assets/run_pie-arm
+  - cp run_pie-x86 ../assets/run_pie-x86
+  - popd
+  - mvn -Dmaven.jar.sign.skip=true -Dmaven.test.skip=true -Dandroid.sign.debug=false -Dandroid.release=true package
+  - sha256sum -b target/polipoid.apk
+
+build: off
+
+artifacts:
+  - path: target/polipoid.apk
+    name: Polipoid
