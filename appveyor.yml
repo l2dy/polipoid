@@ -36,10 +36,10 @@ install:
   - cp run_pie-arm ../assets/run_pie-arm
   - cp run_pie-x86 ../assets/run_pie-x86
   - popd
+
+build_script:
   - mvn -Dmaven.jar.sign.skip=true -Dmaven.test.skip=true -Dandroid.sign.debug=false -Dandroid.release=true package
   - sha256sum -b target/polipoid.apk
-
-build: off
 
 artifacts:
   - path: target/polipoid.apk
